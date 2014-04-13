@@ -1,0 +1,70 @@
+-------------------------------------------------------------------------
+Copyright 2014 sahry@github.com
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-------------------------------------------------------------------------
+
+
+Creating certificate authority:
+
+generic/careq.pem & generic/private/cakey.pem:
+openssl req -new -sha256 -newkey rsa:4096 -keyout generic/private/cakey.pem -out generic/careq.pem -config ./openssl.cnf -days 3650
+
+generic/cacert.pem:
+openssl ca -create_serial -out generic/cacert.pem -days 3650 -keyfile generic/private/cakey.pem -selfsign -extensions v3_ca_has_san -config ./openssl.cnf -infiles generic/careq.pem
+
+Initialize first certificate revocation list number:
+echo 00 > generic/crlnumber
+
+
+Creating service RSA cert key + signing request:
+Organizational Unit name: Net Services RSA
+
+openssl genrsa -out generic/private/generic.tld.rsa.key 4096
+openssl req -new -sha256 -key generic/private/generic.tld.rsa.key -config openssl.cnf -out generic/certreqs/generic.tld.rsa.csr
+
+
+Creating service DSA cert key + signing request:
+Organizational Unit name: Net Services DSA
+
+openssl dsaparam -outform pem -genkey -out generic/private/generic.tld.dsa.param 4096
+openssl gendsa -out generic/private/generic.tld.dsa.key generic/private/generic.tld.dsa.param
+openssl req -new -sha256 -key generic/private/generic.tld.dsa.key -config openssl.cnf -out generic/certreqs/generic.tld.dsa.csr 
+
+
+Signing cert with certificate authority:
+
+openssl ca -config ./openssl.cnf -infiles generic/certreqs/generic.tld.rsa.csr
+openssl ca -config ./openssl.cnf -infiles generic/certreqs/generic.tld.dsa.csr
+
+
+Checking CA signed certs:
+
+openssl verify -CAfile [whateverCAcertIs].pem [certToBeVerified].pem
+
+
+Creating a CRL (30 day update cycle):
+
+openssl ca -gencrl -keyfile generic/private/cakey.pem -cert generic/cacert.pem -out generic/generic_crl.pem -config ./openssl.cnf -crldays 30
+
+
+Checking what's in a CRL:
+
+openssl crl -in generic_crl.pem -noout -text
+
+
+Revoking a certificate:
+
+openssl ca -revoke BAD_CRT_FILE -keyfile CA_KEY -cert CA_CRT -config ./openssl.cnf
+As for example...
+openssl ca -revoke generic/certs/vpn.generic.tld.pem -keyfile generic/private/cakey.pem -cert generic/cacert.pem -config ./openssl.cnf
